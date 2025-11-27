@@ -120,8 +120,8 @@ def view_summary():
 
     # Check which stages are complete
     stages = {
-        'Stage 1: Discovery': 'stage1_candidates.json',
-        'Stage 2: Scraping': 'stage2_scraped_data.json',
+        'Stage 1: Discovery': 'stage_1.json',
+        'Stage 2: Scraping': 'stage_2.json',
         'Stage 3: Extraction': 'stage3_festivals.csv',
         'Stage 4: Analysis': 'stage4_top_sponsor_prospects.csv'
     }

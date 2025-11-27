@@ -58,9 +58,9 @@ def monitor():
 
             # Stage 1: Discovery
             print("STAGE 1: DISCOVERY")
-            if os.path.exists('stage1_candidates.json'):
+            if os.path.exists('stage_1.json'):
                 import json
-                with open('stage1_candidates.json', 'r') as f:
+                with open('stage_1.json', 'r') as f:
                     candidates = json.load(f)
                 print(f"  ✅ Complete - {len(candidates)} candidates found")
             else:
@@ -69,9 +69,9 @@ def monitor():
 
             # Stage 2: Scraping
             print("STAGE 2: WEB SCRAPING")
-            if os.path.exists('stage2_scraped_data.json'):
+            if os.path.exists('stage_2.json'):
                 import json
-                with open('stage2_scraped_data.json', 'r') as f:
+                with open('stage_2.json', 'r') as f:
                     scraped = json.load(f)
                 print(f"  ✅ Complete - {len(scraped)} websites scraped")
             else:

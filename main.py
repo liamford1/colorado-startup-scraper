@@ -14,10 +14,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Add scripts directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scripts'))
 
-from stage1_discovery import main as stage1_main
-from stage2_scraper import main as stage2_main
-from stage3_enrichment import main as stage3_main
-from stage4_openai_extract import main as stage4_main
+from stage_1 import main as stage1_main
+from stage_2 import main as stage2_main
+from stage_3 import main as stage3_main
+from stage_4 import main as stage4_main
 
 
 def print_banner(text: str):
@@ -96,9 +96,9 @@ def run_full_pipeline():
     print(f"Finished: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Duration: {duration}")
     print("\nOutput Files Generated:")
-    print("  • outputs/stage1_candidates.json")
-    print("  • outputs/stage2_scraped_data.json")
-    print("  • outputs/stage3_enriched.json")
+    print("  • outputs/stage_1.json")
+    print("  • outputs/stage_2.json")
+    print("  • outputs/stage_3.json")
     print("  • outputs/FINAL_Investment_Intelligence.csv")
     print("  • outputs/FINAL_Investment_Intelligence.json")
     print("\n✅ All deliverables ready for review!")
