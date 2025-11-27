@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Output files from pipeline
+stage1_candidates.json
+stage2_scraped_data.json
+stage3_festivals.json
+stage3_festivals.csv
+stage3_sponsors.csv
+stage3_festivals_in_progress.csv
+stage3_sponsors_in_progress.csv
+stage4_comparison_table.csv
+stage4_top_10_report.txt
+stage4_festival_profiles.txt
+stage4_sponsor_frequency_matrix.csv
+stage4_top_sponsor_prospects.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
