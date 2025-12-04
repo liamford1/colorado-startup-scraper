@@ -126,12 +126,13 @@ def deduplicate_companies(companies: List[Dict]) -> List[Dict]:
     """
     Deduplicate companies by normalized URL AND company name
     Keep the entry with the most complete information
+    Priority: Real URL > URL_NEEDED
     """
-    # First pass: deduplicate by exact URL
+    # First pass: deduplicate by exact URL (skip URL_NEEDED entries)
     url_map = {}
     for company in companies:
         url = company.get('url', '')
-        if not url:
+        if not url or url == 'URL_NEEDED':
             continue
 
         normalized_url = normalize_url(url)
@@ -147,10 +148,15 @@ def deduplicate_companies(companies: List[Dict]) -> List[Dict]:
                 url_map[normalized_url] = company
 
     # Second pass: deduplicate by company name
+    # Process companies with real URLs first, then URL_NEEDED
+    companies_with_urls = list(url_map.values())
+    companies_needing_urls = [c for c in companies if c.get('url') == 'URL_NEEDED']
+
     name_map = {}
     result = []
 
-    for company in url_map.values():
+    # First process companies with real URLs
+    for company in companies_with_urls:
         name = normalize_company_name(company.get('title') or company.get('company_name', ''))
 
         if not name:
@@ -176,6 +182,21 @@ def deduplicate_companies(companies: List[Dict]) -> List[Dict]:
             else:
                 # Different companies with same name - keep both
                 result.append(company)
+
+    # Then process URL_NEEDED entries - only keep if name doesn't exist yet
+    for company in companies_needing_urls:
+        name = normalize_company_name(company.get('title') or company.get('company_name', ''))
+
+        if not name:
+            result.append(company)
+            continue
+
+        # Only add if this name doesn't exist yet
+        # (prioritizing entries with real URLs over URL_NEEDED)
+        if name not in name_map:
+            name_map[name] = company
+            result.append(company)
+        # else: skip this URL_NEEDED entry since we already have this company with a real URL
 
     return result
 
@@ -251,15 +272,31 @@ def process_file(filepath: str, file_description: str):
     if cleaned_names > 0:
         print(f"  ✓ Cleaned {cleaned_names} company names with markdown formatting")
 
+    # Count URLs before deduplication
+    url_needed_before = sum(1 for c in companies if c.get('url') == 'URL_NEEDED')
+    real_urls_before = sum(1 for c in companies if c.get('url') and c.get('url') != 'URL_NEEDED')
+
+    print(f"  Before: {real_urls_before} with URLs, {url_needed_before} with URL_NEEDED")
+
     # Deduplicate
-    print("Deduplicating by URL...")
+    print("Deduplicating by URL and company name...")
+    print("  Priority: Keeping entries with real URLs over URL_NEEDED")
     companies = deduplicate_companies(companies)
 
     new_count = len(companies)
     duplicates_removed = original_count - new_count
 
+    # Count URLs after deduplication
+    url_needed_after = sum(1 for c in companies if c.get('url') == 'URL_NEEDED')
+    real_urls_after = sum(1 for c in companies if c.get('url') and c.get('url') != 'URL_NEEDED')
+
+    print(f"  After: {real_urls_after} with URLs, {url_needed_after} with URL_NEEDED")
+
     if duplicates_removed > 0:
-        print(f"  ✓ Removed {duplicates_removed} duplicates")
+        url_needed_removed = url_needed_before - url_needed_after
+        print(f"  ✓ Removed {duplicates_removed} duplicates total")
+        if url_needed_removed > 0:
+            print(f"    ({url_needed_removed} were URL_NEEDED duplicates of companies with real URLs)")
     else:
         print(f"  ✓ No duplicates found")
 

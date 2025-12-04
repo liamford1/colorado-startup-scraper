@@ -4,12 +4,18 @@ An automated system to discover, analyze, and rank Colorado startups and their i
 
 ## Overview
 
-This pipeline automates the research of Colorado startups, founders, and investors through 4 stages:
+This pipeline automates the research of Colorado startups, founders, and investors through multiple stages:
 
-1. **Discovery** - Uses Perplexity API to find Colorado startups, VCs, and portfolio companies
-2. **Scraping** - Collects website content, investor pages, and funding announcements
-3. **AI Extraction** - Uses OpenAI GPT to extract structured data (founders, CEOs, investors)
-4. **Analysis** - Scores companies by Endeavor criteria and analyzes investor patterns
+### Stage 1 Pipeline (Discovery & Preparation)
+1. **Stage 1** - Uses Perplexity API to find Colorado startups, VCs, and portfolio companies
+2. **Deduplication** - Removes duplicates and cleans company names
+3. **Stage 1b** - Finds URLs for companies missing website addresses
+4. **Stage 1c** - Sorts results alphabetically
+
+### Main Pipeline (Data Collection & Analysis)
+5. **Stage 2** - Scrapes website content, investor pages, and funding announcements
+6. **Stage 3** - Uses AI to enrich data and filters to Colorado-only companies
+7. **Stage 4** - Extracts comprehensive investment intelligence and business metrics
 
 ## Endeavor Colorado Criteria
 
@@ -72,336 +78,381 @@ chmod +x main.py
 
 ## Usage
 
-### Option 1: Run Full Pipeline (Recommended)
+### Option 1: Run Stage 1 Pipeline (Discovery & Preparation)
 
 ```bash
-python main.py --full
+cd scripts
+python main.py
 ```
 
-This runs all 4 stages with pauses between each stage for review.
+This runs the complete Stage 1 pipeline:
+- Stage 1 (Discovery)
+- Deduplication
+- Stage 1b (URL Finding)
+- Stage 1c (Alphabetical Sorting)
 
-**Estimated time:** 1-2 hours depending on number of companies found
-**Cost estimate:** ~$5-15 in API calls
+**Estimated time:** 10-20 minutes
+**Cost estimate:** ~$2-5 in Perplexity API calls
 
 ### Option 2: Run Individual Stages
 
 ```bash
-# Stage 1: Discovery (find companies)
-python main.py --stage 1
+cd scripts
 
-# Stage 2: Scraping (collect website content)
-python main.py --stage 2
+# Stage 1 Pipeline (automated)
+python main.py
 
-# Stage 3: AI Extraction (extract structured data)
-python main.py --stage 3
+# Stage 2: Website Scraping
+python stage_2.py
 
-# Stage 4: Analysis (score and analyze)
-python main.py --stage 4
+# Stage 3: Data Enrichment & Colorado Filter
+python stage_3.py
+
+# Stage 4: Investment Intelligence Extraction
+python stage_4.py
+
+# Or run specific Stage 1 components individually:
+python stage_1.py      # Discovery only
+python deduplicate.py  # Deduplication only
+python stage_1b.py     # URL finding only
+python stage_1c.py     # Sorting only
 ```
 
 ## Output Files
 
-### Stage 1 Output
-- `stage1_candidates.json` - List of company URLs found via search
+All output files are saved to the `outputs/` directory.
+
+### Stage 1 Pipeline Output
+- `stage_1.json` - Discovered companies (deduplicated and sorted)
+- `stage_1_progress.csv` - Progress tracking for Stage 1
 
 ### Stage 2 Output
-- `stage2_scraped_data.json` - Raw website content, investor pages, news articles
+- `stage_2.json` - Scraped website content, investor pages, news articles
+- `stage_2_progress.csv` - Progress tracking for Stage 2
 
 ### Stage 3 Output
-- `stage3_companies.json` - Structured company data with founders, CEOs, investors
+- `stage_3.json` - Enriched data filtered to Colorado companies only
+- `stage_3_progress.csv` - Progress tracking for Stage 3
 
-### Stage 4 Output (DELIVERABLES)
-- **`companies_complete_data.csv`** - Complete company information with all fields
-- **`companies_rankings.csv`** - Ranked list with founders, CEOs, and key metrics
-- **`investor_prospects.csv`** - Colorado VCs sorted by portfolio size and activity
-- **`all_investors.csv`** - All investor relationships across all companies
+### Stage 4 Output (FINAL DELIVERABLE)
+- **`FINAL_Investment_Intelligence.csv`** - Complete investment intelligence report
+- **`FINAL_Investment_Intelligence.json`** - JSON version for programmatic access
 
-## Scoring System
+Stage 4 extracts comprehensive data including:
+- Company details (name, URL, description)
+- Location (city, state, headquarters)
+- Funding details (total funding, rounds, amounts, dates)
+- Investor information (lead investors, tier-1 VCs, Colorado investors)
+- Business intelligence (industry, business model, company stage, technology focus)
+- Social links (LinkedIn, Crunchbase)
 
-Each company is scored 0-100 on fit to Endeavor criteria:
+## Key Features
 
-- **Business model (0-20)** - Scalable model (SaaS, platform, marketplace)
-- **Market alignment (0-15)** - Industry fit with Endeavor focus areas
-- **Stage fit (0-10)** - Appropriate funding stage (Seed to Series D)
-- **Team quality (0-10)** - Technical founders, co-founder team
-- **Traction (0-20)** - Revenue, customers, growth metrics
-- **Investor backing (0-15)** - Quality and presence of investors
-- **Exit potential (0-10)** - High/medium/low exit potential
+### 1. Automated Stage 1 Pipeline
+- Runs discovery, deduplication, URL finding, and sorting automatically
+- Creates timestamped backups before deduplication
+- Skips already-processed companies to save API costs
+
+### 2. Incremental Processing
+- All stages check for existing data and only process NEW companies
+- Safe to stop and resume at any time
+- Progress saved after each company
+
+### 3. Comprehensive Data Extraction
+- Extracts founders, funding rounds, and investor details
+- Identifies tier-1 VCs (Sequoia, a16z, Accel, etc.)
+- Tracks Colorado investors (Foundry Group, Access Venture, etc.)
+- Normalizes funding amounts ($45M, $1.2B format)
+
+### 4. Colorado Focus
+- Stage 3 filters to only keep Colorado-headquartered companies
+- Tracks Colorado connection strength (High/Medium/Low)
+- Identifies companies with Colorado investors
 
 ## Customization
 
 ### Adjust Search Queries
-Edit `config.py` line 22 to modify the `CUSTOM_SEARCH_QUERIES` list:
+All search queries are defined in `queries.py`. Edit this file to customize discovery:
 
 ```python
-CUSTOM_SEARCH_QUERIES = [
+# In queries.py
+CUSTOM_QUERIES = [
     "Find DeepTech startups in Colorado with venture capital funding founded since 2020",
     # Add your own queries here
 ]
 ```
 
-### Adjust Scoring Weights
-Edit `config.py` line 183 to change Endeavor criteria weights:
-
+Then in `config.py`:
 ```python
-SCORE_WEIGHTS = {
-    'business_model': 20,
-    'traction': 20,  # Increase importance of traction
-    # ...
-}
+from queries import CUSTOM_QUERIES
+CUSTOM_SEARCH_QUERIES = CUSTOM_QUERIES
 ```
 
-### Adjust Endeavor Target Criteria
-Edit `config.py` line 194 to modify target parameters:
+### Adjust Processing Limits
+Edit `config.py` to change how many companies to process:
 
 ```python
-TARGET_FOUNDING_YEAR_MIN = 2020  # Only companies founded since 2020
-FUNDING_YEAR_MIN = 2019          # Funded in last 5 years
+MAX_FESTIVALS_TO_SCRAPE = None  # Process all companies
+# or
+MAX_FESTIVALS_TO_SCRAPE = 50    # Process only first 50
 ```
-
-## Key Features
-
-### 1. Founder & CEO Extraction
-- Extracts all founder names from website and news articles
-- Identifies current CEO
-- Verifies Colorado location when possible
-
-### 2. Comprehensive Investor Data
-- Searches company websites AND news articles for funding info
-- Extracts investor names, tiers (Lead, Series A/B/C, etc.)
-- Identifies Colorado VCs and their portfolios
-- Tracks funding rounds and amounts
-
-### 3. Endeavor Criteria Scoring
-- Prioritizes companies founded since 2020
-- Emphasizes DeepTech industries
-- Scores based on growth indicators
-- Flags companies with Colorado founders/HQ
-
-### 4. VC Portfolio Analysis
-- Shows which VCs are most active in Colorado
-- Lists portfolio companies for each VC
-- Identifies VCs investing in multiple companies (higher priority)
 
 ## Monitoring & Progress
 
 ### Real-Time Monitoring
 
-In one terminal, run the pipeline:
+In one terminal, run stages:
 ```bash
-python main.py --full
+cd scripts
+python main.py          # Stage 1 pipeline
+python stage_2.py       # Stage 2
+python stage_3.py       # Stage 3
+python stage_4.py       # Stage 4
 ```
 
 In a **second terminal**, run the live monitor:
 ```bash
+cd scripts
 python monitor_progress.py
 ```
 
 This shows:
 - ✅ Which stages are complete
 - ⏳ Current progress of running stages
-- 📊 Number of companies/investors extracted so far
-- 📍 Most recently extracted company
+- 📊 Number of companies extracted so far
+- 📍 Most recently processed company
 
 ### View Results Anytime
 
 ```bash
-# View everything
+cd scripts
 python view_results.py
-
-# View specific sections
-python view_results.py companies   # Top companies by score
-python view_results.py investors   # Investor frequency
-python view_results.py prospects   # VC outreach priorities
 ```
+
+This displays progress and results from all completed stages.
 
 ## Example Output
 
-### Top Company Report
+The final CSV (`FINAL_Investment_Intelligence.csv`) includes columns like:
+
 ```
-1. Acme AI - Boulder, CO
-   Fit Score: 87/100
-
-   Key Details:
-     - Founded: 2021
-     - Founders: Jane Smith, John Doe
-     - CEO: Jane Smith
-     - Business Model: SaaS
-     - Stage: Series A
-     - Industries: AI, Enterprise Software
-     - Team Size: 45
-     - Funding: $15M
-     - Investors: 5
-
-   Top Investors:
-     - Foundry Group (Lead)
-     - Boulder Ventures (Series-A)
-     - Techstars (Angel)
+company_name, url, description, founders
+location_city, location_state, headquarters
+total_funding_normalized, num_funding_rounds, funding_stage_progression
+latest_round, latest_round_amount, latest_round_date
+years_since_last_funding
+total_investor_count, lead_investors, all_investors
+notable_tier1_investors, has_colorado_investors
+industry_categories, business_model, company_stage
+technology_focus, target_market, colorado_connection
+linkedin_url, crunchbase_url
 ```
 
-### Investor Prospects
+### Sample Company Entry
 ```
-Top 5 Investor Prospects (Colorado VCs):
-  1. Foundry Group (invested in 8 companies, priority: 105)
-  2. Access Venture Partners (invested in 6 companies, priority: 85)
-  3. Boulder Ventures (invested in 5 companies, priority: 70)
+Company: BrightWave AI
+Location: Boulder, CO
+Founded: 2021
+Founders: Jane Smith, John Doe
+Total Funding: $45M
+Latest Round: Series B ($25M, 2024)
+Lead Investors: Foundry Group, Access Venture Partners
+Tier-1 VCs: a16z, Sequoia Capital
+Industry: AI, Enterprise Software
+Business Model: B2B SaaS
+Company Stage: Growth
+Colorado Connection: High
 ```
 
 ## Tips for Best Results
 
 ### Before Running
-1. **Review search queries** in `config.py` to ensure they target Endeavor criteria
+1. **Review search queries** in `queries.py` to ensure they target your criteria
 2. **Check API quotas** - Perplexity and OpenAI have usage limits
-3. **Estimate costs** - OpenAI charges ~$0.10-0.30 per company analyzed
+3. **Set processing limits** - Start with 10-20 companies to test before processing all
 
 ### During Execution
-1. **Monitor Stage 1 results** - If too many irrelevant results, adjust search queries
-2. **Review Stage 2 output** - Check if websites are being scraped successfully
-3. **Sample Stage 3 extractions** - Verify AI is extracting founder/CEO names correctly
+1. **Monitor Stage 1 results** - Check `stage_1.json` to see discovered companies
+2. **Review deduplication** - Backup files are created automatically before deduplication
+3. **Check URL finding** - Stage 1b will report how many URLs were found
+4. **Monitor Stage 2 progress** - Some websites may fail to scrape (normal)
+5. **Review Stage 3 filtering** - Companies outside Colorado are removed
 
 ### After Completion
-1. **Review `companies_rankings.csv`** - Validate top companies match Endeavor criteria
-2. **Check `investor_prospects.csv`** - Focus on Colorado VCs with multiple portfolio companies
-3. **Verify founder locations** - Ensure founders are actually based in Colorado
-4. **Cross-reference with Endeavor Colorado** - Check if any companies overlap with existing portfolio
+1. **Review `FINAL_Investment_Intelligence.csv`** - Final investment intelligence report
+2. **Check Colorado companies** - All should be headquartered in Colorado
+3. **Verify tier-1 VCs** - Notable investors like Sequoia, a16z, etc.
+4. **Identify Colorado investors** - Focus on Foundry Group, Access Venture, etc.
 
 ## Troubleshooting
 
 ### "No candidates found"
-- Check Perplexity API key is correct
-- Try running Stage 1 directly to see error messages
+- Check Perplexity API key in `.env`
 - Verify Perplexity API quota isn't exceeded
+- Review search queries in `queries.py`
 
 ### "Scraping failed" errors
 - Some websites block scrapers - this is normal
 - The pipeline continues with successful scrapes
-- Check `stage2_scraped_data.json` to see which sites worked
+- Check `stage_2_progress.csv` to see which sites worked
 
-### AI extraction not finding founders/CEOs
-- Check if company website has "About" or "Team" page
-- Review `stage2_scraped_data.json` to see if team info was scraped
-- Try using `gpt-4o` instead of `gpt-4o-mini` (more expensive but more accurate)
+### URL_NEEDED entries remain
+- Stage 1b couldn't find URLs for some companies
+- These are skipped in Stage 2 (scraping)
+- Can manually add URLs to `stage_1.json` and re-run Stage 2
 
 ### Not enough Colorado companies
-- Add more Colorado-specific search queries in `config.py`
-- Include specific Colorado cities (Denver, Boulder, Fort Collins, etc.)
+- Stage 3 filters to Colorado only - some companies will be removed
+- Add more Colorado-specific queries in `queries.py`
 - Search for specific Colorado VCs and their portfolios
+
+### Duplicate companies appearing
+- Run `python deduplicate.py` to clean up all stage files
+- Deduplication is automatic in Stage 1 pipeline but can be re-run anytime
 
 ## Cost & Time Estimates
 
-### Perplexity API
-- **Stage 1 uses ~40 queries** (one per search query in config)
+### For 50 Companies
+
+**Perplexity API:**
+- Stage 1: ~119 queries (one per search query)
+- Stage 1b: ~1 query per company missing URL
+- Stage 3: ~2-3 queries per company (for missing data)
+- **Estimated: 150-200 queries total**
 - Check [Perplexity pricing](https://www.perplexity.ai/pricing) for current rates
-- Estimated cost: ~$2-5 for Stage 1
 
-### OpenAI API
-- GPT-4o-mini: ~$0.10-0.30 per company extraction
-- GPT-4o: ~$1-2 per company (more accurate)
-- **Stage 3 cost for 50 companies: ~$5-15** (using gpt-4o-mini)
+**OpenAI API:**
+- Stage 3: ~$0.05-0.10 per company (gpt-4o-mini)
+- Stage 4: ~$0.10-0.30 per company (gpt-4o-mini)
+- **Estimated: $7-20 total for 50 companies**
 
-### Time
-- Stage 1: ~5-10 minutes (40+ searches)
-- Stage 2: ~30-60 minutes (depends on # of companies)
-- Stage 3: ~20-40 minutes (depends on # of companies)
-- Stage 4: ~2-5 minutes
+**Time:**
+- Stage 1 Pipeline: ~10-20 minutes (discovery + dedup + URL finding + sorting)
+- Stage 2: ~30-60 minutes (web scraping with rate limiting)
+- Stage 3: ~30-60 minutes (enrichment + AI extraction + Colorado filter)
+- Stage 4: ~10-15 minutes (intelligence extraction)
 
-**Total: 1-2 hours for 50 companies**
+**Total: 1.5-3 hours for 50 companies**
 
 ## Next Steps After Pipeline Completes
 
-1. **Review Top Companies** (`companies_rankings.csv`)
-   - Verify founders are in Colorado
-   - Check if companies match Endeavor's focus areas
-   - Validate funding information is accurate
+1. **Open Final Report**
+   - Review `FINAL_Investment_Intelligence.csv` in Excel/Google Sheets
+   - Sort by funding amount, investor quality, or company stage
+   - Filter for specific industries or funding stages
 
-2. **Analyze VCs** (`investor_prospects.csv`)
-   - Identify most active Colorado VCs
-   - Research their investment thesis and portfolio
-   - Consider for Endeavor network/partnerships
+2. **Analyze Key Metrics**
+   - Identify companies with tier-1 VC backing
+   - Find companies with Colorado investors
+   - Look for recent funding rounds (2023-2025)
 
-3. **Create Outreach Strategy**
-   - Prioritize companies with high Endeavor fit scores
-   - Focus on companies founded since 2020
-   - Target DeepTech companies with strong growth metrics
+3. **Validate Data**
+   - Spot-check top companies against their websites
+   - Verify founder names and locations
+   - Cross-reference funding info with Crunchbase/LinkedIn
 
-4. **Validate Data Quality**
-   - Spot-check company details against their websites
-   - Verify founder/CEO names and locations
-   - Update any incorrect information
+4. **Create Outreach List**
+   - Prioritize companies with strong funding and growth
+   - Focus on Colorado-connected companies (investors, founders, HQ)
+   - Target specific industries (AI, biotech, cleantech, etc.)
 
 5. **Expand Research** (Optional)
-   - Re-run Stage 1 with different search queries
-   - Add specific companies manually to `stage1_candidates.json`
-   - Target specific industries (AI, biotech, cleantech)
+   - Add more queries to `queries.py`
+   - Re-run Stage 1 pipeline to discover more companies
+   - Manually add specific companies to `stage_1.json`
 
 ## Support & Modifications
 
 This system is fully customizable. Key files to modify:
 
-- `config.py` - Search queries, scoring weights, Endeavor criteria
-- `stage3_extract.py` - AI extraction prompt (for founder/CEO extraction)
-- `schema.py` - Data model and scoring algorithm
-- `stage4_analyze.py` - Analysis and reporting
+- `queries.py` - Search queries for company discovery
+- `config.py` - Processing limits and configuration
+- `scripts/stage_1.py` - Company discovery logic
+- `scripts/stage_2.py` - Web scraping logic
+- `scripts/stage_3.py` - Data enrichment and Colorado filtering
+- `scripts/stage_4.py` - Intelligence extraction prompts
+- `scripts/deduplicate.py` - Deduplication logic
+- `scripts/main.py` - Stage 1 pipeline orchestration
 
 ## Architecture Diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  STAGE 1: DISCOVERY                                         │
-│  ┌─────────────┐     ┌─────────────┐                       │
-│  │ Perplexity  │────▶│  Candidate  │                       │
-│  │     API     │     │  Company    │                       │
-│  │  (sonar)    │     │   List      │                       │
-│  └─────────────┘     └─────────────┘                       │
+│  STAGE 1 PIPELINE (main.py)                                 │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐  │
+│  │   Stage 1   │────▶│ Deduplicate │────▶│  Stage 1b   │  │
+│  │ (Discovery) │     │   & Clean   │     │ (URL Find)  │  │
+│  └─────────────┘     └─────────────┘     └─────────────┘  │
+│         │                                         │          │
+│         │                                         ▼          │
+│         │                                 ┌─────────────┐  │
+│         │                                 │  Stage 1c   │  │
+│         │                                 │  (Sort A-Z) │  │
+│         │                                 └─────────────┘  │
+│         ▼                                         │          │
+│  • Perplexity searches (119 queries)             │          │
+│  • Removes duplicates by URL & name              │          │
+│  • Finds missing URLs                            │          │
+│  • Sorts alphabetically                          │          │
 │                                                              │
-│  Sources:                                                    │
-│  • coloradostartups.org leaderboard                         │
-│  • endeavorcolorado.org portfolio                           │
-│  • Colorado VC portfolios                                   │
-│  • News/press releases                                      │
+│  Output: stage_1.json (cleaned, deduplicated, sorted)      │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  STAGE 2: SCRAPING                                          │
+│  STAGE 2: WEB SCRAPING                                      │
 │  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐  │
 │  │  Company    │────▶│    Web      │────▶│   Scraped   │  │
 │  │    URLs     │     │  Scraper    │     │   Content   │  │
 │  └─────────────┘     └─────────────┘     └─────────────┘  │
 │                                                              │
-│  Collects:                                                   │
-│  • Main page, About page, Team page                         │
-│  • Investor/funding pages                                   │
-│  • News articles about funding                              │
+│  • Scrapes main page, about page, team page                │
+│  • Finds and scrapes investor/funding pages                │
+│  • Collects news articles about funding                    │
+│  • Falls back to Playwright for JS-heavy sites             │
+│  • Skips already-scraped companies                         │
+│                                                              │
+│  Output: stage_2.json                                       │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  STAGE 3: AI EXTRACTION                                     │
+│  STAGE 3: ENRICHMENT & COLORADO FILTER                      │
 │  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐  │
-│  │   Scraped   │────▶│   OpenAI    │────▶│ Structured  │  │
-│  │   Content   │     │  GPT-4o     │     │    Data     │  │
+│  │   Scraped   │────▶│ Perplexity  │────▶│   OpenAI    │  │
+│  │   Content   │     │  + OpenAI   │     │  Extract    │  │
+│  └─────────────┘     └─────────────┘     └─────────────┘  │
+│                                                  │            │
+│                                                  ▼            │
+│                                          ┌─────────────┐    │
+│                                          │   Colorado  │    │
+│                                          │   Filter    │    │
+│                                          └─────────────┘    │
+│                                                              │
+│  • Searches for missing data (founders, funding, location) │
+│  • Extracts structured information with AI                 │
+│  • Filters to Colorado companies ONLY                      │
+│  • Skips already-enriched companies                        │
+│                                                              │
+│  Output: stage_3.json (Colorado only)                      │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  STAGE 4: INVESTMENT INTELLIGENCE EXTRACTION                │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐  │
+│  │  Enriched   │────▶│   OpenAI    │────▶│    Final    │  │
+│  │    Data     │     │ GPT-4o-mini │     │   Report    │  │
 │  └─────────────┘     └─────────────┘     └─────────────┘  │
 │                                                              │
 │  Extracts:                                                   │
-│  • Founder names (with CO location)                         │
-│  • CEO name                                                  │
-│  • All investors (VCs, angels, rounds)                      │
-│  • Business model, stage, traction                          │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│  STAGE 4: ANALYSIS                                          │
-│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐  │
-│  │ Structured  │────▶│  Endeavor   │────▶│   Reports   │  │
-│  │    Data     │     │  Scoring    │     │  & CSVs     │  │
-│  └─────────────┘     └─────────────┘     └─────────────┘  │
+│  • Funding details (rounds, amounts, dates, investors)     │
+│  • Business intelligence (model, stage, industry)          │
+│  • Investor analysis (tier-1 VCs, Colorado investors)     │
+│  • Location parsing (city, state)                         │
+│  • Skips already-extracted companies                      │
 │                                                              │
-│  Outputs:                                                    │
-│  • companies_rankings.csv (founders, CEOs)                  │
-│  • investor_prospects.csv (Colorado VCs)                    │
-│  • all_investors.csv (full VC portfolios)                   │
+│  Output: FINAL_Investment_Intelligence.csv                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 

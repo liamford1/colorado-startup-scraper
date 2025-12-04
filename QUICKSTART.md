@@ -1,183 +1,191 @@
 # Quick Start Guide
 
-## TL;DR - Run the Pipeline with Live Monitoring
+## TL;DR - Run the Pipeline
 
-### Terminal 1: Run the Pipeline
+### Run Stage 1 Pipeline (Discovery & Preparation)
 ```bash
-cd /Users/liamford/Documents/caruso/festivals
-python main.py --full
+cd scripts
+python main.py
 ```
 
-### Terminal 2: Watch Live Progress (Optional but Cool!)
+This automatically runs:
+1. Stage 1 - Company discovery via Perplexity
+2. Deduplication - Remove duplicates and clean names
+3. Stage 1b - Find missing URLs
+4. Stage 1c - Sort alphabetically
+
+**Time:** ~10-20 minutes
+**Output:** `outputs/stage_1.json` (cleaned, deduplicated, sorted)
+
+### Run Remaining Stages
+
 ```bash
-cd /Users/liamford/Documents/caruso/festivals
+# Stage 2: Web Scraping
+python stage_2.py
+
+# Stage 3: Data Enrichment & Colorado Filter
+python stage_3.py
+
+# Stage 4: Investment Intelligence Extraction
+python stage_4.py
+```
+
+## Monitor Progress (Optional but Useful!)
+
+### Terminal 1: Run the stages
+```bash
+cd scripts
+python main.py
+# Then run stage_2.py, stage_3.py, stage_4.py
+```
+
+### Terminal 2: Watch live progress
+```bash
+cd scripts
 python monitor_progress.py
 ```
 
 The monitor refreshes every 5 seconds showing:
 - Which stages are complete
-- How many festivals have been extracted
-- Latest festival being processed
-- CSV file sizes updating in real-time
+- How many companies have been processed
+- Latest company being processed
+- File counts updating in real-time
 
-### Watch CSV Files Update
+## Watch Progress Files Update
 
-**Yes!** You can see the CSVs populate as the pipeline runs:
+**Yes!** You can see the progress CSVs populate as the pipeline runs:
 
-1. Open `stage3_festivals_in_progress.csv` in Excel/Google Sheets/Numbers
+1. Open `outputs/stage_1_progress.csv` in Excel/Google Sheets
 2. Run the pipeline in terminal
-3. Refresh the CSV every ~30 seconds to see new festivals appear
-4. Every 5 festivals, the file auto-updates
-
-The pipeline saves results every 5 festivals during Stage 3, so you'll see:
-- Festival 1-5 appear
-- Then 6-10
-- Then 11-15
-- etc.
-
-## View Results Without Opening CSV Files
-
-```bash
-# See everything (festivals, sponsors, prospects)
-python view_results.py
-
-# See just top festivals
-python view_results.py festivals
-
-# See sponsor frequency analysis
-python view_results.py sponsors
-
-# See prioritized outreach list
-python view_results.py prospects
-
-# See pipeline status
-python view_results.py summary
-```
+3. Refresh the CSV every ~30 seconds to see new companies appear
+4. Progress is saved incrementally - safe to stop anytime
 
 ## Output Files You'll Get
 
-After running the pipeline, these are your deliverables:
+After running all stages:
 
-### For Your Boss (Main Deliverables)
-1. **`stage4_top_sponsor_prospects.csv`** ⭐ - **PRIORITY OUTREACH LIST**
-   - Sponsors appearing in 2+ festivals
-   - Ranked by priority score
-   - Ready for outreach campaign
+### Main Deliverable
+**`outputs/FINAL_Investment_Intelligence.csv`** ⭐
+- Complete investment intelligence report
+- Company details, founders, funding, investors
+- Business intelligence (industry, model, stage)
+- Location, social links, tier-1 VCs
 
-2. **`stage4_sponsor_frequency_matrix.csv`** - Sponsor analysis
-   - Shows which sponsors appear most often
-   - Typical tier levels
-   - Festival associations
-
-3. **`stage4_comparison_table.csv`** - Festival comparison table
-   - All festivals side-by-side
-   - Sortable by fit score
-   - Key details at a glance
-
-4. **`stage4_top_10_report.txt`** - Detailed top 10 profiles
-   - Full analysis of best matches
-   - Score breakdowns
-   - Sponsor lists
-
-5. **`stage4_festival_profiles.txt`** - One-page profiles
-   - Individual festival summaries
-   - Format, programming, sponsors
-   - Contact information
-
-### Supporting Data
-- `stage3_festivals.csv` - All festival data
-- `stage3_sponsors.csv` - All sponsor relationships
+### Supporting Files
+- `outputs/stage_1.json` - Discovered companies (deduplicated, sorted)
+- `outputs/stage_2.json` - Scraped website content
+- `outputs/stage_3.json` - Enriched data (Colorado only)
+- `outputs/*.csv` - Progress tracking files for each stage
 
 ## Typical Timeline
 
-For **30 festivals** (default setting):
+For **50 companies**:
 
 | Stage | Time | What Happens |
 |-------|------|--------------|
-| Stage 1 | 3-8 min | Finds ~50-80 candidate festivals via Perplexity API search |
-| Stage 2 | 30-60 min | Scrapes websites for content |
-| Stage 3 | 20-40 min | AI extracts structured data (saves every 5 festivals) |
-| Stage 4 | 2-5 min | Analyzes and ranks results |
-| **Total** | **1-2 hours** | Fully automated, just wait |
+| Stage 1 Pipeline | 10-20 min | Discovers, deduplicates, finds URLs, sorts |
+| Stage 2 | 30-60 min | Scrapes websites (rate-limited) |
+| Stage 3 | 30-60 min | Enriches data, filters to Colorado |
+| Stage 4 | 10-15 min | Extracts investment intelligence |
+| **Total** | **1.5-3 hours** | Fully automated |
 
 ## Cost Estimate
 
-- Perplexity API: ~11 queries (check [Perplexity pricing](https://www.perplexity.ai/pricing) for current rates)
-- OpenAI API: ~$0.10-0.30 per festival × 30 = **~$3-9 total**
+For **50 companies**:
+
+- **Perplexity API:** 150-200 queries (~$2-5)
+- **OpenAI API:** ~$7-20 total
+- **Total:** ~$10-25
+
+Check [Perplexity pricing](https://www.perplexity.ai/pricing) for current rates.
 
 ## If Something Goes Wrong
 
-### Pipeline crashes during Stage 3
-No problem! The in-progress CSV files are already saved.
+### Pipeline crashes during any stage
+No problem! Progress files are saved incrementally.
 
 ```bash
 # Check what you have so far
-python view_results.py summary
+python view_results.py
 
-# Continue from Stage 3
-python main.py --stage 3
+# Continue from where it stopped
+python stage_2.py  # or stage_3.py, stage_4.py
 ```
 
-### Want to test with fewer festivals first
-Edit `config.py` line 49:
+### Want to test with fewer companies first
+Edit `config.py`:
 ```python
-MAX_FESTIVALS_TO_SCRAPE = 5  # Start with just 5
+MAX_FESTIVALS_TO_SCRAPE = 10  # Start with just 10
 ```
 
 Then run:
 ```bash
-python main.py --full
+cd scripts
+python main.py
 ```
 
-### Want to see more/different festivals
-Edit search queries in `config.py` lines 14-30, then:
+### Want to discover more companies
+Edit search queries in `queries.py`, then:
 ```bash
-python main.py --stage 1  # Re-run discovery
+cd scripts
+python stage_1.py  # Re-run discovery only
 ```
+
+The new companies will be added to existing data (no duplicates).
+
+### Duplicate companies appearing
+```bash
+cd scripts
+python deduplicate.py  # Clean all stage files
+```
+
+This removes duplicates from all output files and creates backups.
 
 ## Next Steps After Pipeline Completes
 
-1. **Review Top 10** - Read `stage4_top_10_report.txt`
-2. **Validate Top Sponsors** - Open `stage4_top_sponsor_prospects.csv`
-3. **Compare Festivals** - Open `stage4_comparison_table.csv` in Excel
-4. **Plan Outreach** - Use top prospects for sponsor emails
-5. **Share with Boss** - Send the 5 main CSV/TXT files
+1. **Open Final Report** - Review `FINAL_Investment_Intelligence.csv`
+2. **Sort & Filter** - Open in Excel, sort by funding amount or investors
+3. **Analyze VCs** - Look for tier-1 VCs and Colorado investors
+4. **Validate Data** - Spot-check top companies against their websites
+5. **Create Outreach List** - Focus on well-funded Colorado companies
 
 ## Tips
 
-- Run the live monitor in a second terminal - it's satisfying to watch!
-- Open the in-progress CSVs in Excel and refresh periodically
-- The pipeline can run overnight if needed
-- All data is saved locally - no cloud uploads
-- Re-run any stage individually without redoing previous work
+- **Run the live monitor** in a second terminal - it's satisfying to watch!
+- **Open progress CSVs** in Excel and refresh periodically
+- **All stages are resumable** - safe to stop with Ctrl+C anytime
+- **Incremental processing** - re-running stages only processes NEW companies
+- **Colorado filter** - Stage 3 removes non-Colorado companies
 
 ## Common Questions
 
 **Q: Can I stop and resume?**
 Yes! Stop with Ctrl+C, then run the next stage when ready.
 
-**Q: Can I process more than 30 festivals?**
-Yes! Edit `MAX_FESTIVALS_TO_SCRAPE` in `config.py` (up to ~100 recommended)
+**Q: Can I process more than 50 companies?**
+Yes! Edit `MAX_FESTIVALS_TO_SCRAPE` in `config.py` or set to `None` for all.
 
 **Q: How accurate is the AI extraction?**
-Very good for major data points. Spot-check a few festivals to verify.
+Very good for major data points. Spot-check a few companies to verify.
 
-**Q: Can I adjust the scoring?**
-Yes! Edit the scoring weights in `config.py` or `schema.py`
+**Q: Why are some companies removed in Stage 3?**
+Stage 3 filters to Colorado-only companies. Non-Colorado companies are removed.
 
 **Q: Do I need to keep terminal open?**
-Yes, but you can run it in the background or use `screen`/`tmux`
+Yes, but you can run it in the background or use `screen`/`tmux`.
 
 ---
 
 Ready? Run this now:
 ```bash
-python main.py --full
+cd scripts
+python main.py
 ```
 
 Then open a second terminal and run:
 ```bash
+cd scripts
 python monitor_progress.py
 ```
 
-Watch the magic happen! 🎵✨
+Watch the magic happen! 🚀✨

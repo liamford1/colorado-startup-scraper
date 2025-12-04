@@ -109,12 +109,7 @@ If they exist and look good, keep them. Only extract/improve if missing or uncle
   "company_stage": "Company stage (e.g., 'Seed', 'Early Growth', 'Growth', 'Late Stage', 'Mature')",
   "technology_focus": "Technology focus areas (e.g., 'DeepTech, AI/ML', 'CleanTech', 'Biotech', 'FinTech', etc.)",
   "target_market": "Target market (e.g., 'Enterprise', 'SMB', 'Consumer', 'Government', etc.)",
-  "colorado_connection": "High/Medium/Low based on Colorado HQ + Colorado founders",
-
-  "has_funding_info": "Yes/No",
-  "has_founders": "Yes/No",
-  "has_location": "Yes/No",
-  "data_completeness": "Score 1-10 based on data quality"
+  "colorado_connection": "High/Medium/Low based on Colorado HQ + Colorado founders"
 }}
 
 IMPORTANT INSTRUCTIONS:
@@ -276,10 +271,7 @@ def process_all_companies(input_file: str, output_file: str, test_mode: bool = F
 
         # Company Intelligence
         'industry_categories', 'business_model', 'company_stage',
-        'technology_focus', 'target_market', 'colorado_connection',
-
-        # Data Quality
-        'has_funding_info', 'has_founders', 'has_location', 'data_completeness'
+        'technology_focus', 'target_market', 'colorado_connection'
     ]
 
     with open(output_file, 'w', newline='', encoding='utf-8') as f:
@@ -294,13 +286,9 @@ def process_all_companies(input_file: str, output_file: str, test_mode: bool = F
     print(f"   - Total companies processed: {len(results)}")
 
     # Calculate stats
-    with_funding = sum(1 for r in results if r.get('has_funding_info') == 'Yes')
-    with_founders = sum(1 for r in results if r.get('has_founders') == 'Yes')
     with_tier1 = sum(1 for r in results if r.get('notable_tier1_investors', '').strip())
     with_co_investors = sum(1 for r in results if r.get('has_colorado_investors') == 'Yes')
 
-    print(f"   - Companies with funding info: {with_funding}")
-    print(f"   - Companies with founders: {with_founders}")
     print(f"   - Companies with tier-1 VCs: {with_tier1}")
     print(f"   - Companies with Colorado investors: {with_co_investors}")
 
