@@ -38,22 +38,28 @@ class CompanyDiscovery:
         """
         Using Perplexity search to extract company URL, Name, and Discription
         """
-        system_prompt = """You are a research assistant finding company and startup websites.
+        system_prompt = """You are a research assistant finding companies and startups.
+
 For each company you find, provide:
-1. The official company website URL
-2. The company name
-3. A brief description
+1. Company name
+2. Official website URL (if available, otherwise write "URL_NEEDED")
+3. Brief description including location, industry, and funding info if available
 
-Format your response as a list with one company per line:
-- Company Name | URL | Brief description
+Format each company on one line exactly as:
+Company Name | https://www.example.com | Brief description
 
-Focus on finding official company websites, not social media or job posting pages.
-Only include companies that match the search criteria."""
+OR if website is not available:
+Company Name | URL_NEEDED | Brief description with location and funding details
 
-        user_prompt = f"""Find {num_results} company websites that match this search: {query}
+Include as many relevant companies as possible, even if you don't have their website URLs."""
 
-Return a list of companies with their official website URLs, names, and brief descriptions.
-Format: Company Name | URL | Description"""
+        user_prompt = f"""Find {num_results} companies matching this search: {query}
+
+Provide a list in this format:
+Company Name | Website URL or URL_NEEDED | Description
+
+Include companies even if you don't know their exact website - we can find that later.
+Focus on finding company names, locations, and funding information."""
 
         try:
             response = self.client.chat.completions.create(
@@ -66,16 +72,28 @@ Format: Company Name | URL | Description"""
                 max_tokens=2000
             )
 
+            # Log the raw API response for debugging
+            print(f"\n  🔍 RAW API RESPONSE:")
+            print(f"  Model: {response.model}")
+            print(f"  Finish Reason: {response.choices[0].finish_reason}")
+
             content = response.choices[0].message.content
-            
+            print(f"  Content Length: {len(content) if content else 0} characters")
+            print(f"  Content Preview (first 500 chars):")
+            print(f"  {'-'*60}")
+            print(f"  {content[:500] if content else 'EMPTY CONTENT'}")
+            print(f"  {'-'*60}\n")
+
             # Get results from LLM response
             results = self._parse_perplexity_response(content, query)
             time.sleep(1)
-            
+
             return results
 
         except Exception as e:
             print(f"Error during Perplexity search: {e}")
+            import traceback
+            traceback.print_exc()
             return []
 
     def _parse_perplexity_response(self, content: str, query: str) -> List[Dict]:
@@ -83,13 +101,30 @@ Format: Company Name | URL | Description"""
         Parse Perplexity response to extract company URLs and information
         """
         results = []
+        print(f"  📋 PARSING RESPONSE...")
 
-        # Extract URL
-        url_pattern = r'https?://[^\s\)]+'
-        urls = re.findall(url_pattern, content)
+        def normalize_url(url: str) -> str:
+            """Add https:// prefix if missing and clean URL"""
+            url = url.strip()
+            # Remove common markdown/formatting characters
+            url = re.sub(r'[^\w\s:/.-]', '', url)
+            # Add https:// if no protocol
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            # Ensure consistent protocol (prefer https)
+            url = url.replace('http://', 'https://')
+            return url
+
+        # Extract URLs - match both with and without protocol
+        url_pattern_with_protocol = r'https?://[^\s\)|\]]+'
+        url_pattern_without_protocol = r'(?:www\.)?[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(?:\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})+\.[a-zA-Z]{2,}(?:/[^\s\)|\]]*)?'
+
+        urls_with_protocol = re.findall(url_pattern_with_protocol, content)
+        print(f"  Found {len(urls_with_protocol)} URLs with protocol: {urls_with_protocol[:3]}")
 
         # Try to extract structured format (Name | URL | Description)
         lines = content.split('\n')
+        print(f"  Parsing {len(lines)} lines for structured format (Name | URL | Description)...")
 
         for line in lines:
             line = line.strip()
@@ -101,12 +136,23 @@ Format: Company Name | URL | Description"""
                 parts = [p.strip() for p in line.split('|')]
                 if len(parts) >= 2:
                     name = parts[0].lstrip('- ').strip()
+                    # Remove numbered list prefixes like "1. ", "2. ", etc.
+                    name = re.sub(r'^\d+\.\s*', '', name)
                     url = parts[1].strip()
                     snippet = parts[2].strip() if len(parts) > 2 else ""
 
-                    # Clean URL
-                    url = re.sub(r'[^\w\s:/.-]', '', url)
-                    if url.startswith('http'):
+                    # Handle URL_NEEDED placeholder
+                    if url.upper() in ['URL_NEEDED', 'NOT PROVIDED', 'N/A', 'UNKNOWN']:
+                        results.append({
+                            'title': name,
+                            'link': 'URL_NEEDED',
+                            'snippet': snippet or f"Company found via search - URL to be found later"
+                        })
+                        continue
+
+                    # Check if this looks like a URL (has domain-like structure)
+                    if re.match(r'^(?:https?://)?(?:www\.)?[a-zA-Z0-9][-a-zA-Z0-9]{0,62}(?:\.[a-zA-Z0-9][-a-zA-Z0-9]{0,62})*\.[a-zA-Z]{2,}', url):
+                        url = normalize_url(url)
                         results.append({
                             'title': name,
                             'link': url,
@@ -114,11 +160,12 @@ Format: Company Name | URL | Description"""
                         })
                         continue
 
-            url_match = re.search(url_pattern, line)
+            # Try to find URLs with protocol
+            url_match = re.search(url_pattern_with_protocol, line)
             if url_match:
-                url = url_match.group(0)
+                url = normalize_url(url_match.group(0))
                 # Remove URL from line to get name/description
-                name_desc = line.replace(url, '').strip().lstrip('- ').strip()
+                name_desc = line.replace(url_match.group(0), '').strip().lstrip('- ').strip()
                 results.append({
                     'title': name_desc.split('|')[0].strip() if '|' in name_desc else name_desc,
                     'link': url,
@@ -126,8 +173,10 @@ Format: Company Name | URL | Description"""
                 })
 
         # If we didn't get structured results, use URLs found in text
-        if not results and urls:
-            for url in urls[:10]:
+        if not results and urls_with_protocol:
+            print(f"  No structured results found, extracting from URLs in text...")
+            for url in urls_with_protocol[:10]:
+                url = normalize_url(url)
                 # Try to find context around URL
                 url_index = content.find(url)
                 if url_index > 0:
@@ -145,18 +194,22 @@ Format: Company Name | URL | Description"""
                         'snippet': context[:200] if len(context) > 200 else context
                     })
 
+        print(f"  ✅ Parsed {len(results)} companies from response")
+        if results:
+            print(f"  First result: {results[0].get('title', 'N/A')} - {results[0].get('link', 'N/A')}")
+
         return results[:10]
 
-    def _save_progress_csv(self, candidates: List[Dict], filename: str):
-        """Save current progress to CSV"""
+    def _save_progress(self, candidates: List[Dict], csv_filename: str, json_filename: str):
+        """Save current progress to both CSV and JSON"""
         if not candidates:
             return
 
         try:
-            # Define CSV columns
-            fieldnames = ['company_name', 'url', 'found_count', 'priority', 'investor_info_count', 'snippet', 'discovery_query']
+            # Save CSV
+            fieldnames = ['company_name', 'url', 'found_count', 'priority', 'snippet', 'discovery_query']
 
-            with open(filename, 'w', newline='', encoding='utf-8') as f:
+            with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
 
@@ -166,45 +219,88 @@ Format: Company Name | URL | Description"""
                         'url': candidate.get('url', ''),
                         'found_count': candidate.get('found_count', 0),
                         'priority': candidate.get('priority', 'medium'),
-                        'investor_info_count': candidate.get('investor_info_count', 0),
                         'snippet': candidate.get('snippet', '')[:200],  # Truncate for readability
                         'discovery_query': candidate.get('discovery_query', '')[:100]
                     })
 
-            # Also save JSON backup
-            json_backup = filename.replace('.csv', '_backup.json')
-            with open(json_backup, 'w', encoding='utf-8') as f:
-                json.dump(candidates, f, indent=2, ensure_ascii=False)
+            # Save JSON with consistent field order
+            normalized_candidates = []
+            for candidate in candidates:
+                normalized = {
+                    'title': candidate.get('title', ''),
+                    'url': candidate.get('url', ''),
+                    'snippet': candidate.get('snippet', ''),
+                    'discovery_query': candidate.get('discovery_query', ''),
+                    'found_count': candidate.get('found_count', 1),
+                    'priority': candidate.get('priority', 'medium')
+                }
+                normalized_candidates.append(normalized)
+
+            with open(json_filename, 'w', encoding='utf-8') as f:
+                json.dump(normalized_candidates, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
-            print(f"  Warning: Could not save progress CSV: {e}")
+            print(f"  Warning: Could not save progress: {e}")
 
     def discover_companies(self) -> List[Dict]:
         """
         Discover companies/startups using multiple search strategies
         """
+        # Files for incremental saving
+        csv_file = '../outputs/stage_1_progress.csv'
+        json_file = '../outputs/stage_1.json'
+
+        # Load existing candidates to merge with new discoveries
         all_candidates = {}
+        existing_candidates = []
+        if os.path.exists(json_file):
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    existing_candidates = json.load(f)
+                # Add existing candidates to dict (using normalized URL or name as key)
+                for candidate in existing_candidates:
+                    url = candidate.get('url', '')
+                    if url:
+                        # Use same normalization as in deduplication logic
+                        if url == 'URL_NEEDED':
+                            normalized_key = candidate.get('title', '').lower().strip()
+                        else:
+                            normalized_key = url.lower().rstrip('/')
+                            normalized_key = re.sub(r'^https?://', '', normalized_key)
+                            normalized_key = re.sub(r'^www\.', '', normalized_key)
+                        # Ensure all required fields exist
+                        candidate.setdefault('title', candidate.get('title', ''))
+                        candidate.setdefault('priority', 'medium')
+                        candidate.setdefault('found_count', 1)
+                        candidate.setdefault('snippet', '')
+                        candidate.setdefault('discovery_query', '')
+                        all_candidates[normalized_key] = candidate
+                print(f"📁 Loaded {len(existing_candidates)} existing candidates")
+            except Exception as e:
+                print(f"⚠️  Could not load existing candidates: {e}")
 
-        # CSV header for incremental saving
-        import csv
-        csv_file = 'stage_1_progress.csv'
-        csv_exists = False
-
-        # Try to load queries from config, otherwise use defaults
+        # Try to load queries from config, then queries.py, otherwise use defaults
         try:
             from config import CUSTOM_SEARCH_QUERIES
             search_queries = CUSTOM_SEARCH_QUERIES
         except ImportError:
-            # Fallback to default queries if config not available
-            search_queries = [
-                # Default company search queries
-                "Find early-stage startups with venture capital funding in technology sector",
-                "Find Series A and Series B companies with strong revenue growth",
-                "Find SaaS companies with B2B business models seeking investment",
-                "Find startups in healthcare tech, fintech, and enterprise software",
-                "Find companies with technical founders and product-market fit",
-                "Find venture-backed startups with public investor information",
-            ]
+            # Try importing from queries.py
+            try:
+                import sys
+                sys.path.insert(0, '..')
+                from queries import ALL_QUERIES
+                search_queries = ALL_QUERIES
+            except ImportError:
+                # Fallback to default queries if neither config nor queries.py available
+                search_queries = [
+                    # Default company search queries
+                    "Find early-stage startups with venture capital funding in technology sector",
+                    "Find Series A and Series B companies with strong revenue growth",
+                    "Find SaaS companies with B2B business models seeking investment",
+                    "Find startups in healthcare tech, fintech, and enterprise software",
+                    "Find companies with technical founders and product-market fit",
+                    "Find venture-backed startups with public investor information",
+                ]
 
         print(f"Running {len(search_queries)} discovery searches using Perplexity API...")
 
@@ -214,37 +310,70 @@ Format: Company Name | URL | Description"""
             try:
                 results = self.search(query, num_results=10)
 
+                # Track stats for this query
+                raw_count = len(results)
+                filtered_count = 0
+                new_count = 0
+                duplicate_count = 0
+
                 for result in results:
                     url = result.get('link', '')
 
-                    if not url or not url.startswith('http'):
+                    # Allow URL_NEEDED as a valid placeholder
+                    if not url:
+                        filtered_count += 1
                         continue
 
-                    # Skip certain domains
-                    skip_domains = ['wikipedia.org', 'youtube.com', 'facebook.com',
-                                  'instagram.com', 'twitter.com', 'reddit.com',
-                                  'linkedin.com', 'tiktok.com']
-                    if any(domain in url.lower() for domain in skip_domains):
+                    # Accept URL_NEEDED placeholder or valid URLs
+                    if url != 'URL_NEEDED' and not url.startswith('http'):
+                        filtered_count += 1
                         continue
 
-                    # Use URL as unique key (normalize URL)
-                    normalized_url = url.rstrip('/').lower()
-                    
-                    if normalized_url not in all_candidates:
-                        all_candidates[normalized_url] = {
-                            'url': url,
+                    # Skip certain domains (only for actual URLs, not URL_NEEDED)
+                    if url != 'URL_NEEDED':
+                        skip_domains = ['wikipedia.org', 'youtube.com', 'facebook.com',
+                                      'instagram.com', 'twitter.com', 'reddit.com',
+                                      'linkedin.com', 'tiktok.com']
+                        if any(domain in url.lower() for domain in skip_domains):
+                            filtered_count += 1
+                            continue
+
+                    # Use URL as unique key (normalize URL for deduplication)
+                    # For URL_NEEDED entries, use company name as key
+                    if url == 'URL_NEEDED':
+                        # Use normalized company name as key
+                        normalized_key = result.get('title', '').lower().strip()
+                    else:
+                        # Remove protocol, www, trailing slash, and lowercase
+                        normalized_key = url.lower().rstrip('/')
+                        normalized_key = re.sub(r'^https?://', '', normalized_key)
+                        normalized_key = re.sub(r'^www\.', '', normalized_key)
+
+                    if normalized_key not in all_candidates:
+                        all_candidates[normalized_key] = {
                             'title': result.get('title', ''),
+                            'url': url,
                             'snippet': result.get('snippet', ''),
                             'discovery_query': query,
-                            'found_count': 1
+                            'found_count': 1,
+                            'priority': 'medium'
                         }
+                        new_count += 1
                     else:
-                        all_candidates[normalized_url]['found_count'] += 1
+                        all_candidates[normalized_key]['found_count'] += 1
+                        duplicate_count += 1
 
-                print(f"  Found {len(results)} results ({len(all_candidates)} unique total)")
+                # Detailed logging
+                print(f"  API returned: {raw_count} results")
+                if filtered_count > 0:
+                    print(f"  Filtered out: {filtered_count} (invalid URLs or skip_domains)")
+                print(f"  New companies: {new_count}")
+                if duplicate_count > 0:
+                    print(f"  Duplicates: {duplicate_count}")
+                print(f"  Total unique: {len(all_candidates)}")
 
-                # Save progress to CSV after each search
-                self._save_progress_csv(list(all_candidates.values()), csv_file)
+                # Save progress to CSV and JSON after each search
+                self._save_progress(list(all_candidates.values()), csv_file, json_file)
 
             except Exception as e:
                 print(f"  Error: {e}")
@@ -336,7 +465,7 @@ Format: Company Name | URL | Description"""
 
             # Save progress every 10 companies
             if len(enriched_candidates) % 10 == 0:
-                self._save_progress_csv(enriched_candidates, 'stage_1_progress.csv')
+                self._save_progress(enriched_candidates, '../outputs/stage_1_progress.csv', '../outputs/stage_1.json')
                 print(f"  💾 Progress saved ({len(enriched_candidates)}/{len(candidates)} companies enriched)")
 
             time.sleep(1.5)  # Rate limiting
@@ -388,59 +517,43 @@ def main():
 
     output_file = '../outputs/stage_1.json'
 
-    # Load existing candidates if they exist
-    existing_candidates = []
-    existing_urls = set()
+    # Count existing candidates before discovery
+    existing_count = 0
     if os.path.exists(output_file):
-        print(f"\n📁 Found existing candidates file")
-        with open(output_file, 'r', encoding='utf-8') as f:
-            existing_candidates = json.load(f)
-        existing_urls = {c['url'] for c in existing_candidates}
-        print(f"   Loaded {len(existing_candidates)} existing candidates")
+        try:
+            with open(output_file, 'r', encoding='utf-8') as f:
+                existing_count = len(json.load(f))
+        except:
+            pass
 
-    # Discover companies
+    # Discover companies (this now loads existing candidates internally and merges)
     candidates = discovery.discover_companies()
 
     # Filter candidates
     filtered_candidates = discovery.filter_candidates(candidates)
 
-    # Only keep NEW candidates (not in existing)
-    new_candidates = [c for c in filtered_candidates if c['url'] not in existing_urls]
-    print(f"\n🔍 Found {len(new_candidates)} NEW candidates (filtered {len(filtered_candidates) - len(new_candidates)} duplicates)")
-
-    # Enrich with investor info searches (optional - can be disabled if too slow)
-    if new_candidates:
-        try:
-            from config import ENABLE_SPONSOR_INFO_SEARCHES  # Keeping same config var name for now
-            if ENABLE_SPONSOR_INFO_SEARCHES:
-                new_candidates = discovery.enrich_with_investor_searches(new_candidates)
-        except ImportError:
-            # Default to enabled
-            new_candidates = discovery.enrich_with_investor_searches(new_candidates)
-
-    # Merge with existing candidates
-    all_candidates = existing_candidates + new_candidates
-
-    # Save results
+    # Save final results
     with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(all_candidates, f, indent=2, ensure_ascii=False)
+        json.dump(filtered_candidates, f, indent=2, ensure_ascii=False)
+
+    # Save final CSV
+    csv_file = '../outputs/stage_1_progress.csv'
+    discovery._save_progress(filtered_candidates, csv_file, output_file)
 
     print(f"\n✓ Results saved to {output_file}")
-    print(f"✓ Total candidates: {len(all_candidates)} ({len(existing_candidates)} existing + {len(new_candidates)} new)")
-    print(f"  - High priority: {sum(1 for c in all_candidates if c.get('priority') == 'high')}")
-    print(f"  - Medium priority: {sum(1 for c in all_candidates if c.get('priority') == 'medium')}")
+    print(f"✓ Total candidates: {len(filtered_candidates)} ({existing_count} existing + {len(filtered_candidates) - existing_count} new)")
+    print(f"  - High priority: {sum(1 for c in filtered_candidates if c.get('priority') == 'high')}")
+    print(f"  - Medium priority: {sum(1 for c in filtered_candidates if c.get('priority') == 'medium')}")
 
-    # Show top 10 NEW candidates
-    if new_candidates:
-        print(f"\nTop {min(10, len(new_candidates))} NEW candidates:")
-        for i, candidate in enumerate(new_candidates[:10], 1):
-            print(f"{i}. {candidate['title']}")
-            print(f"   {candidate['url']}")
-            print(f"   Found {candidate['found_count']} times\n")
-    else:
-        print("\n⚠️  No new candidates found (all were duplicates)")
+    # Show top 10 candidates
+    print(f"\nTop {min(10, len(filtered_candidates))} candidates by frequency:")
+    sorted_candidates = sorted(filtered_candidates, key=lambda x: x.get('found_count', 0), reverse=True)
+    for i, candidate in enumerate(sorted_candidates[:10], 1):
+        print(f"{i}. {candidate['title']}")
+        print(f"   {candidate['url']}")
+        print(f"   Found {candidate['found_count']} times\n")
 
-    return all_candidates
+    return filtered_candidates
 
 
 if __name__ == '__main__':

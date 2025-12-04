@@ -10,6 +10,11 @@ venv/
 dist/
 build/
 
+# Environment variables
+.env
+.env.*
+!.env.example
+
 # Output files from pipeline
 stage1_candidates.json
 stage2_scraped_data.json

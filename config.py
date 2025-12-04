@@ -16,80 +16,43 @@ SEARCH_DELAY = 2.0
 # Options: "sonar" (faster, cheaper), "sonar-pro" (better quality, more expensive)
 PERPLEXITY_MODEL = "sonar-pro"
 
-# Custom search queries (modify to refine your search)
-# Note: Perplexity works better with natural language queries
-# Focus: Colorado startups, VCs, and companies for Endeavor criteria
-CUSTOM_SEARCH_QUERIES = [
-    # ===== COLORADO STARTUPS LEADERBOARD =====
-    "Find the top 100 companies on Colorado Startups leaderboard at coloradostartups.org",
-    "Find the top 100 fastest growing companies on Colorado Startups leaderboard",
-    "Find companies featured on coloradostartups.org leaderboard with founders and funding",
+# Custom search queries
+# Import from queries.py for better organization
+# You can choose different query sets based on your focus:
+#   - ALL_QUERIES: All available queries (most comprehensive)
+#   - EARLY_STAGE_FOCUS: Focus on seed/pre-seed companies
+#   - DEEPTECH_FOCUS: Focus on deep tech companies
+#   - NEWS_FOCUS: Focus on recent funding announcements
+# Or create your own custom list below
 
-    # ===== ENDEAVOR COLORADO PORTFOLIO =====
-    "Find current Endeavor Colorado entrepreneur companies and their founders",
-    "Find companies selected by Endeavor Colorado with founder names and details",
-    "Find Endeavor Colorado portfolio companies at endeavorcolorado.org",
+from queries import (
+    ALL_QUERIES,           # All 119 queries
+    EARLY_STAGE_FOCUS,     # Focus on early-stage companies
+    DEEPTECH_FOCUS,        # Focus on deep tech
+    NEWS_FOCUS,            # Focus on recent news
+    # Individual categories (if you want to mix and match):
+    EARLY_STAGE_QUERIES,
+    FUNDED_QUERIES,
+    SPECIFIC_VC_QUERIES,
+    LEADERBOARD_QUERIES,
+    INDUSTRY_QUERIES,
+)
 
-    # ===== DEEPTECH COLORADO COMPANIES =====
-    "Find DeepTech startups in Colorado with venture capital funding founded since 2020",
-    "Find Colorado DeepTech companies with Series A B C funding rounds in the last 5 years",
-    "Find Colorado startups in AI, robotics, biotech, cleantech with rapid growth and VC backing",
-    "Find Colorado hardware and software technology companies with technical founders",
+# Choose your query set:
+# Option 1: Use ALL queries (most comprehensive, takes longer)
+CUSTOM_SEARCH_QUERIES = ALL_QUERIES
 
-    # ===== FUNDED COLORADO STARTUPS (Last 5 years) =====
-    "Find Colorado startups that received seed funding in the last 5 years",
-    "Find Colorado companies that raised Series A funding since 2020",
-    "Find Colorado companies that raised Series B or Series C funding in the last 5 years",
-    "Find recently funded Colorado startups with headquarters in Denver, Boulder, Fort Collins",
-    "Find Colorado startups founded since 2020 with venture capital backing",
+# Option 2: Use EARLY_STAGE_FOCUS for seed/pre-seed companies
+# CUSTOM_SEARCH_QUERIES = EARLY_STAGE_FOCUS
 
-    # ===== COLORADO STARTUP ECOSYSTEMS BY CITY =====
-    "Find fast-growing startups in Boulder Colorado with founder names and investors",
-    "Find Denver Colorado tech startups founded since 2020 with VC funding",
-    "Find Fort Collins Colorado startups with Series A or seed funding",
-    "Find Colorado Springs startups with technical founders and investor backing",
-    "Find Longmont Colorado startups with rapid growth and funding rounds",
+# Option 3: Combine specific categories
+# CUSTOM_SEARCH_QUERIES = EARLY_STAGE_QUERIES + SPECIFIC_VC_QUERIES + LEADERBOARD_QUERIES
 
-    # ===== COLORADO VCS AND THEIR PORTFOLIOS =====
-    "Find venture capital firms based in Colorado and their portfolio companies",
-    "Find Colorado VCs with investments in DeepTech and high-growth startups",
-    "Find Denver Boulder venture capital firms and their portfolio company CEOs",
-    "Find Colorado venture capital investors and the companies they've funded",
-    "Find list of Colorado VC firms with portfolio companies and founder information",
-
-    # ===== SPECIFIC VC SEARCHES =====
-    "Find Boulder Ventures Colorado portfolio companies with founders and CEOs",
-    "Find Access Venture Partners Colorado portfolio companies",
-    "Find Foundry Group Colorado portfolio companies with founder details",
-    "Find Techstars Boulder portfolio companies and their founders",
-    "Find Ridgeline Ventures Colorado investments",
-    "Find Blackhorn Ventures Colorado portfolio companies",
-
-    # ===== PRIVATELY HELD HIGH-GROWTH COMPANIES =====
-    "Find privately held Colorado companies with rapid revenue growth since 2020",
-    "Find Colorado private companies with strong growth metrics and VC backing",
-    "Find Colorado startups that are still private and raising funding rounds",
-
-    # ===== FOUNDER AND CEO INFORMATION =====
-    "Find Colorado startup founders based in Colorado with company information",
-    "Find CEOs of Colorado tech companies with venture capital backing",
-    "Find technical founders in Colorado running high-growth startups",
-    "Find Colorado entrepreneur profiles with company names and funding details",
-
-    # ===== INDUSTRY-SPECIFIC COLORADO SEARCHES =====
-    "Find Colorado SaaS companies with B2B models and VC funding",
-    "Find Colorado fintech startups founded since 2020",
-    "Find Colorado healthcare tech companies with Series A funding",
-    "Find Colorado climate tech and sustainability startups with investors",
-    "Find Colorado enterprise software companies with rapid growth",
-    "Find Colorado AI and machine learning startups with funding",
-
-    # ===== NEWS AND PRESS RELEASE SEARCHES =====
-    "Find news articles about Colorado startup funding rounds in 2024 2023 2022",
-    "Find press releases about Colorado companies raising Series A B C funding",
-    "Find Colorado startup funding announcements with investor and founder names",
-    "Find articles about Colorado ventures and their portfolio companies",
-]
+# Option 4: Create your own custom list
+# CUSTOM_SEARCH_QUERIES = [
+#     "Your custom query here",
+#     "Another custom query",
+# ]
 
 # Domains to exclude from discovery
 EXCLUDE_DOMAINS = [

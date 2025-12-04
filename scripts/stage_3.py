@@ -96,6 +96,24 @@ class DataEnricher:
             if main or about:
                 website_content = f"\n\nWebsite Content:\n{main}\n{about}"
 
+            # Include investor page content (dedicated investor/team/funding pages)
+            investor_pages = scraped.get('investor_page_content', [])
+            if investor_pages:
+                website_content += "\n\nInvestor/Team Pages:"
+                for page in investor_pages[:3]:  # Top 3 investor pages
+                    page_content = page.get('content', '')[:2000]  # First 2000 chars per page
+                    if page_content:
+                        website_content += f"\n{page_content}"
+
+            # Include investor info content (news articles, press releases about funding)
+            investor_info = scraped.get('investor_info_content', [])
+            if investor_info:
+                website_content += "\n\nNews Articles & Press Releases about Funding:"
+                for article in investor_info[:3]:  # Top 3 articles
+                    article_content = article.get('content', '')[:2000]  # First 2000 chars per article
+                    if article_content:
+                        website_content += f"\n{article_content}"
+
         prompt = f"""Extract structured information about this company from ALL sources below.
 
 Company Name: {company_data.get('company_name')}
@@ -105,9 +123,13 @@ Existing Information from Phase 1 & 2:
 - Description/Snippet: {company_data.get('snippet', 'Unknown')}
 - Social Links: {company_data.get('social_links', 'None found')}
 
-External Search Results (News, Press Releases, etc.):
+External Search Results:
 {search_results}
+
+Scraped Content (website, investor pages, news articles):
 {website_content}
+
+IMPORTANT: Prioritize information from scraped content over search results when available.
 
 Extract and return ONLY the following in JSON format:
 {{
@@ -148,26 +170,39 @@ Be specific with funding details - include round type, amount, and investors.
         """Enrich a single company's data"""
         print(f"\n  Analyzing: {company_data.get('company_name')}")
 
-        # All companies need enrichment since Phase 2 only does scraping
-        missing_fields = ['funding', 'location', 'founders']
+        # Check if we already have rich investor info from scraped news articles
+        scraped = company_data.get('scraped_content', {})
+        investor_info_content = scraped.get('investor_info_content', [])
+        has_rich_investor_info = len(investor_info_content) > 0
+
+        # Determine what fields need external searches
+        missing_fields = []
+
+        # Only search for funding if we don't have investor info content
+        if not has_rich_investor_info:
+            missing_fields.append('funding')
+        else:
+            print(f"    ✓ Using scraped investor info content (skipping funding search)")
+
+        # Always check for location and founders (might not be in investor articles)
+        missing_fields.extend(['location', 'founders'])
 
         # Check if social links need enhancement
         social_links = company_data.get('social_links', '')
         if 'linkedin' not in social_links.lower() or 'crunchbase' not in social_links.lower():
             missing_fields.append('social')
 
-        print(f"    Searching for: {', '.join(missing_fields)}")
-
-        # Search for missing data
-        search_results = self.search_for_missing_data(
-            company_data.get('company_name'),
-            company_data.get('url'),
-            missing_fields
-        )
-
-        if not search_results.get('search_results'):
-            print(f"    ⚠️  No search results found")
-            return company_data
+        # Search for missing data (only if we have fields that need searching)
+        search_results = {'search_results': ''}
+        if missing_fields:
+            print(f"    Searching for: {', '.join(missing_fields)}")
+            search_results = self.search_for_missing_data(
+                company_data.get('company_name'),
+                company_data.get('url'),
+                missing_fields
+            )
+        else:
+            print(f"    ✓ All data available from scraped content, skipping searches")
 
         # Extract structured data from search results
         print(f"    🤖 Extracting structured data...")
@@ -202,6 +237,41 @@ Be specific with funding details - include round type, amount, and investors.
         print(f"    ✓ Enriched successfully")
 
         return enriched_company
+
+
+def filter_colorado_companies(companies: List[Dict]) -> List[Dict]:
+    """
+    Filter to only keep companies headquartered in Colorado.
+    Removes companies not in CO.
+    """
+    colorado_companies = []
+    removed = []
+
+    for company in companies:
+        location = str(company.get('location', '')).lower()
+        headquarters = str(company.get('headquarters', '')).lower()
+
+        # Check if Colorado/CO is mentioned in location fields
+        is_colorado = (
+            'colorado' in location or
+            'colorado' in headquarters or
+            ', co' in location or
+            location.endswith(' co')
+        )
+
+        if is_colorado:
+            colorado_companies.append(company)
+        else:
+            removed.append(company.get('company_name', 'Unknown'))
+
+    if removed:
+        print(f"\n🗑️  Removed {len(removed)} non-Colorado companies:")
+        for name in removed[:10]:  # Show first 10
+            print(f"     - {name}")
+        if len(removed) > 10:
+            print(f"     ... and {len(removed) - 10} more")
+
+    return colorado_companies
 
 
 def main():
@@ -244,7 +314,8 @@ def main():
                 scraped_content[url] = {
                     'main_content': item.get('main_content', ''),
                     'about_content': item.get('about_content', ''),
-                    'investor_page_content': item.get('investor_page_content', [])
+                    'investor_page_content': item.get('investor_page_content', []),
+                    'investor_info_content': item.get('investor_info_content', [])
                 }
         print(f"✓ Loaded full content from {json_file}")
     except FileNotFoundError:
@@ -308,6 +379,26 @@ def main():
 
     print(f"\n✓ Enrichment complete!")
     print(f"✓ Total enriched: {len(all_enriched)} companies ({len(enriched_companies)} existing + {len(new_enriched)} new)")
+
+    # Filter to only Colorado companies
+    all_enriched = filter_colorado_companies(all_enriched)
+    print(f"✓ After Colorado filter: {len(all_enriched)} companies")
+
+    # Save final filtered results
+    with open(output_json, 'w', encoding='utf-8') as f:
+        json.dump(all_enriched, f, indent=2, ensure_ascii=False)
+
+    csv_file = '../outputs/stage_3_progress.csv'
+    with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+        fieldnames = [
+            'company_name', 'url', 'description', 'founders',
+            'funding_info', 'latest_funding_date', 'total_funding', 'key_investors',
+            'location', 'headquarters', 'social_links', 'success'
+        ]
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
+        writer.writeheader()
+        writer.writerows(all_enriched)
+
     print(f"✓ Results saved to {output_json}")
 
     # Summary

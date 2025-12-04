@@ -467,9 +467,18 @@ def main():
 
     candidates_to_process = candidates[:limit] if limit is not None else candidates
 
-    # Filter out already scraped candidates
-    new_candidates = [c for c in candidates_to_process if c['url'] not in scraped_urls]
-    print(f"\n🔍 Found {len(new_candidates)} NEW companies to scrape (skipping {len(candidates_to_process) - len(new_candidates)} already scraped)")
+    # Filter out already scraped candidates and those without URLs
+    new_candidates = [c for c in candidates_to_process
+                     if c['url'] not in scraped_urls
+                     and c.get('url') != 'URL_NEEDED']
+
+    skipped_no_url = sum(1 for c in candidates_to_process if c.get('url') == 'URL_NEEDED')
+    skipped_scraped = len(candidates_to_process) - len(new_candidates) - skipped_no_url
+
+    print(f"\n🔍 Found {len(new_candidates)} NEW companies to scrape")
+    print(f"   Skipping {skipped_scraped} already scraped")
+    if skipped_no_url > 0:
+        print(f"   Skipping {skipped_no_url} without URLs (run stage_1b.py to find URLs)")
 
     if not new_candidates:
         print("⚠️  No new companies to scrape! All candidates have already been processed.")
