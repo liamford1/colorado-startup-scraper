@@ -247,6 +247,10 @@ def process_all_companies(input_file: str, output_file: str, test_mode: bool = F
                 json.dump(results, f, indent=2)
             continue
 
+    # Sort results alphabetically by company name
+    print(f"\n🔤 Sorting results alphabetically by company name...")
+    results.sort(key=lambda x: (x.get('company_name', '') or '').lower())
+
     # Save final CSV
     print(f"\n💾 Saving final CSV to {output_file}...")
 
@@ -279,9 +283,14 @@ def process_all_companies(input_file: str, output_file: str, test_mode: bool = F
         writer.writeheader()
         writer.writerows(results)
 
+    # Save final sorted JSON
+    with open(json_output, 'w', encoding='utf-8') as f:
+        json.dump(results, f, indent=2)
+
     print(f"\n✅ Extraction complete!")
     print(f"✅ CSV saved to: {output_file}")
     print(f"✅ JSON saved to: {json_output}")
+    print(f"   (Both files sorted alphabetically by company name)")
     print(f"\n📊 Summary:")
     print(f"   - Total companies processed: {len(results)}")
 

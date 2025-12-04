@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 Main Pipeline Orchestrator
-Runs the complete Stage 1 pipeline: Discovery → Deduplication → URL Finding → Sorting
+Runs the complete investment intelligence pipeline
 """
 import sys
 import os
+import argparse
 from datetime import datetime
 
 # Add scripts directory to path for imports
@@ -122,22 +123,108 @@ def run_stage_1c():
         return False
 
 
+def run_stage_2():
+    """Run Stage 2: Website Scraping"""
+    print_header("STEP 5: WEBSITE SCRAPING (Stage 2)")
+    try:
+        import stage_2
+        stage_2.main()
+        return True
+    except Exception as e:
+        print(f"❌ Error in Stage 2: {e}")
+        return False
+
+
+def run_stage_3():
+    """Run Stage 3: Data Enrichment & Colorado Filter"""
+    print_header("STEP 6: DATA ENRICHMENT & COLORADO FILTER (Stage 3)")
+    try:
+        import stage_3
+        stage_3.main()
+        return True
+    except Exception as e:
+        print(f"❌ Error in Stage 3: {e}")
+        return False
+
+
+def run_stage_4():
+    """Run Stage 4: Investment Intelligence Extraction"""
+    print_header("STEP 7: INVESTMENT INTELLIGENCE EXTRACTION (Stage 4)")
+    try:
+        import stage_4
+        stage_4.process_all_companies(
+            '../outputs/stage_3.json',
+            '../outputs/FINAL_Investment_Intelligence.csv',
+            test_mode=False
+        )
+        return True
+    except Exception as e:
+        print(f"❌ Error in Stage 4: {e}")
+        return False
+
+
+def run_stage_4b():
+    """Run Stage 4b: Colorado Filter for Final Output"""
+    print_header("STEP 8: COLORADO FILTER (Stage 4b)")
+    try:
+        import stage_4b
+        stage_4b.main()
+        return True
+    except Exception as e:
+        print(f"❌ Error in Stage 4b: {e}")
+        return False
+
+
 def main():
-    """Run the complete Stage 1 pipeline"""
+    """Run the pipeline"""
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description="Colorado Startup Investment Intelligence Pipeline"
+    )
+    parser.add_argument(
+        '--full',
+        action='store_true',
+        help='Run the complete pipeline (Stage 1 through Stage 4b)'
+    )
+    parser.add_argument(
+        '--stage1-only',
+        action='store_true',
+        help='Run only Stage 1 pipeline (Discovery → Dedup → URL Finding → Sorting)'
+    )
+    args = parser.parse_args()
+
     start_time = datetime.now()
 
-    print("\n" + "=" * 70)
-    print("  STAGE 1 PIPELINE ORCHESTRATOR")
-    print("  Pipeline: Stage 1 → Deduplicate → Stage 1b → Stage 1c")
-    print("=" * 70)
+    # Determine which pipeline to run
+    if args.full:
+        print("\n" + "=" * 70)
+        print("  COMPLETE PIPELINE ORCHESTRATOR")
+        print("  Running ALL stages: 1 → Dedup → 1b → 1c → 2 → 3 → 4 → 4b")
+        print("=" * 70)
 
-    # Track success
-    steps = [
-        ("Stage 1 (Discovery)", run_stage_1),
-        ("Deduplication", run_deduplicate),
-        ("Stage 1b (URL Finding)", run_stage_1b),
-        ("Stage 1c (Sorting)", run_stage_1c)
-    ]
+        steps = [
+            ("Stage 1 (Discovery)", run_stage_1),
+            ("Deduplication", run_deduplicate),
+            ("Stage 1b (URL Finding)", run_stage_1b),
+            ("Stage 1c (Sorting)", run_stage_1c),
+            ("Stage 2 (Website Scraping)", run_stage_2),
+            ("Stage 3 (Data Enrichment & CO Filter)", run_stage_3),
+            ("Stage 4 (Investment Intelligence)", run_stage_4),
+            ("Stage 4b (Colorado Filter)", run_stage_4b)
+        ]
+    else:
+        # Default: Stage 1 pipeline only
+        print("\n" + "=" * 70)
+        print("  STAGE 1 PIPELINE ORCHESTRATOR")
+        print("  Pipeline: Stage 1 → Deduplicate → Stage 1b → Stage 1c")
+        print("=" * 70)
+
+        steps = [
+            ("Stage 1 (Discovery)", run_stage_1),
+            ("Deduplication", run_deduplicate),
+            ("Stage 1b (URL Finding)", run_stage_1b),
+            ("Stage 1c (Sorting)", run_stage_1c)
+        ]
 
     results = []
 
@@ -165,8 +252,15 @@ def main():
     if all_passed:
         print("\n✅ PIPELINE COMPLETE!")
         print(f"✅ Total time: {duration.total_seconds():.1f} seconds")
-        print(f"✅ Stage 1 data ready at: ../outputs/stage_1.json")
-        print("\nNext step: Run stage_2.py to scrape company websites")
+
+        if args.full:
+            print(f"✅ Final output ready at: ../outputs/FINAL_Investment_Intelligence.csv")
+            print(f"   (Colorado companies only, sorted alphabetically)")
+        else:
+            print(f"✅ Stage 1 data ready at: ../outputs/stage_1.json")
+            print("\nNext steps:")
+            print("  - Run 'python main.py --full' to run the complete pipeline")
+            print("  - Or run stage_2.py, stage_3.py, stage_4.py, stage_4b.py individually")
     else:
         print("\n❌ Pipeline incomplete - see errors above")
         print(f"⏱️  Time elapsed: {duration.total_seconds():.1f} seconds")
