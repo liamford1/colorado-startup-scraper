@@ -34,14 +34,41 @@ class CompanyDiscovery:
         )
         self.model = PERPLEXITY_MODEL
 
+    def normalize_company_name_aggressive(self, name: str) -> str:
+        """Aggressively normalize company name to catch duplicates like 'BrightWave' vs 'Bright Wave Inc'"""
+        if not name:
+            return ""
+
+        # Remove leading numbers
+        name = re.sub(r'^\d+\.\s*', '', name)
+        # Convert to lowercase
+        name = name.lower().strip()
+
+        # Remove common suffixes and legal entities (must be at end of string)
+        suffixes = ['inc', 'incorporated', 'corporation', 'corp', 'llc', 'ltd',
+                   'limited', 'co', 'company', 'pbc', 'pllc', 'lp', 'llp']
+        for suffix in suffixes:
+            # Remove with word boundary to avoid removing from middle of words
+            name = re.sub(rf'\b{suffix}\b\.?$', '', name)
+
+        # Remove all punctuation and special characters
+        name = re.sub(r'[^\w\s]', '', name)
+
+        # Remove ALL spaces to catch "BrightWave" vs "Bright Wave"
+        name = name.replace(' ', '')
+
+        return name
+
     def search(self, query: str, num_results: int = 10) -> List[Dict]:
         """
         Using Perplexity search to extract company URL, Name, and Discription
         """
-        system_prompt = """You are a research assistant finding companies and startups.
+        system_prompt = """You are a research assistant finding REAL, SPECIFIC companies and startups.
+
+CRITICAL: You must provide ACTUAL company names, not placeholders like "[Company 1]" or "Company Name".
 
 For each company you find, provide:
-1. Company name
+1. The REAL, SPECIFIC company name (e.g., "Palantir", "Gusto", "Gitlab")
 2. Official website URL (if available, otherwise write "URL_NEEDED")
 3. Brief description including location, industry, and funding info if available
 
@@ -51,15 +78,23 @@ Company Name | https://www.example.com | Brief description
 OR if website is not available:
 Company Name | URL_NEEDED | Brief description with location and funding details
 
-Include as many relevant companies as possible, even if you don't have their website URLs."""
+IMPORTANT RULES:
+- NEVER use placeholder names like "[Company 1]", "[Company Name]", "Company XYZ"
+- ONLY include companies where you know the ACTUAL company name
+- If you can't find real company names, return fewer results
+- Include as many relevant companies as possible, even if you don't have their website URLs"""
 
-        user_prompt = f"""Find {num_results} companies matching this search: {query}
+        user_prompt = f"""Find up to {num_results} REAL companies matching this search: {query}
 
 Provide a list in this format:
 Company Name | Website URL or URL_NEEDED | Description
 
-Include companies even if you don't know their exact website - we can find that later.
-Focus on finding company names, locations, and funding information."""
+CRITICAL REQUIREMENTS:
+- Use ACTUAL, SPECIFIC company names only (e.g., "Stripe", "Notion", "Databricks")
+- NO placeholders like "[Company 1]", "[Company Name]", "Example Corp"
+- Include companies even if you don't know their exact website - we can find that later
+- If you can't find real company names, return fewer results rather than using placeholders
+- Focus on finding real company names, locations, and funding information"""
 
         try:
             response = self.client.chat.completions.create(
@@ -257,25 +292,38 @@ Focus on finding company names, locations, and funding information."""
             try:
                 with open(json_file, 'r', encoding='utf-8') as f:
                     existing_candidates = json.load(f)
-                # Add existing candidates to dict (using normalized URL or name as key)
+                # Add existing candidates to dict, checking for name-based duplicates
                 for candidate in existing_candidates:
                     url = candidate.get('url', '')
                     if url:
-                        # Use same normalization as in deduplication logic
+                        # Use aggressive normalization for URL_NEEDED entries
                         if url == 'URL_NEEDED':
-                            normalized_key = candidate.get('title', '').lower().strip()
+                            normalized_key = f"name:{self.normalize_company_name_aggressive(candidate.get('title', ''))}"
                         else:
+                            # For real URLs, normalize the domain
                             normalized_key = url.lower().rstrip('/')
                             normalized_key = re.sub(r'^https?://', '', normalized_key)
                             normalized_key = re.sub(r'^www\.', '', normalized_key)
-                        # Ensure all required fields exist
-                        candidate.setdefault('title', candidate.get('title', ''))
-                        candidate.setdefault('priority', 'medium')
-                        candidate.setdefault('found_count', 1)
-                        candidate.setdefault('snippet', '')
-                        candidate.setdefault('discovery_query', '')
-                        all_candidates[normalized_key] = candidate
-                print(f"📁 Loaded {len(existing_candidates)} existing candidates")
+                            # Extract just the domain for comparison
+                            normalized_key = f"url:{normalized_key.split('/')[0]}"
+
+                        # Check if this company name already exists (prevents loading duplicates)
+                        normalized_name = self.normalize_company_name_aggressive(candidate.get('title', ''))
+                        name_exists = any(
+                            self.normalize_company_name_aggressive(existing.get('title', '')) == normalized_name
+                            for existing in all_candidates.values()
+                        )
+
+                        if not name_exists and normalized_key not in all_candidates:
+                            # Ensure all required fields exist
+                            candidate.setdefault('title', candidate.get('title', ''))
+                            candidate.setdefault('priority', 'medium')
+                            candidate.setdefault('found_count', 1)
+                            candidate.setdefault('snippet', '')
+                            candidate.setdefault('discovery_query', '')
+                            all_candidates[normalized_key] = candidate
+
+                print(f"📁 Loaded {len(all_candidates)} unique existing candidates (from {len(existing_candidates)} total)")
             except Exception as e:
                 print(f"⚠️  Could not load existing candidates: {e}")
 
@@ -318,6 +366,47 @@ Focus on finding company names, locations, and funding information."""
 
                 for result in results:
                     url = result.get('link', '')
+                    title = result.get('title', '')
+
+                    # Filter out placeholder company names and instructions
+                    # Check original title and lowercase version
+                    title_lower = title.lower().strip()
+                    snippet_lower = result.get('snippet', '').lower()
+
+                    # More comprehensive placeholder detection
+                    is_placeholder = (
+                        # Instructions/Examples
+                        title_lower.startswith('if the') or
+                        title_lower.startswith('if website') or
+                        'short description' in title_lower or
+                        'format:' in title_lower or
+                        'example:' in title_lower or
+                        # Brackets
+                        title.startswith('[') or
+                        title.startswith('(') or
+                        # Generic names
+                        title_lower.startswith('company name') or
+                        title_lower.startswith('company xyz') or
+                        title_lower.startswith('example') or
+                        # Numbered companies
+                        re.match(r'^company \d+', title_lower) or
+                        re.match(r'^\[company', title_lower) or
+                        # Backticks or quotes
+                        title.startswith('`') or
+                        title.startswith('"company') or
+                        title.startswith("'company") or
+                        # Very short or suspicious
+                        len(title.strip()) < 2 or
+                        title_lower == 'company' or
+                        title_lower in ['startup', 'business', 'firm', 'corp', 'inc'] or
+                        # Snippet contains instructions
+                        'short description' in snippet_lower
+                    )
+
+                    if is_placeholder:
+                        filtered_count += 1
+                        print(f"    ⚠️ Skipping placeholder: '{title}'")
+                        continue
 
                     # Allow URL_NEEDED as a valid placeholder
                     if not url:
@@ -339,17 +428,28 @@ Focus on finding company names, locations, and funding information."""
                             continue
 
                     # Use URL as unique key (normalize URL for deduplication)
-                    # For URL_NEEDED entries, use company name as key
+                    # For URL_NEEDED entries, use aggressively normalized company name as key
                     if url == 'URL_NEEDED':
-                        # Use normalized company name as key
-                        normalized_key = result.get('title', '').lower().strip()
+                        # Aggressive normalization to catch "BrightWave" vs "Bright Wave Inc"
+                        normalized_name = self.normalize_company_name_aggressive(result.get('title', ''))
+                        normalized_key = f"name:{normalized_name}"
                     else:
                         # Remove protocol, www, trailing slash, and lowercase
                         normalized_key = url.lower().rstrip('/')
                         normalized_key = re.sub(r'^https?://', '', normalized_key)
                         normalized_key = re.sub(r'^www\.', '', normalized_key)
+                        # Extract just the domain for better deduplication
+                        normalized_key = f"url:{normalized_key.split('/')[0]}"
 
-                    if normalized_key not in all_candidates:
+                    # ADDITIONAL CHECK: Also check if normalized NAME exists in any entry
+                    # This catches duplicates where one has URL and one has URL_NEEDED
+                    normalized_name_for_check = self.normalize_company_name_aggressive(result.get('title', ''))
+                    name_exists = any(
+                        self.normalize_company_name_aggressive(candidate.get('title', '')) == normalized_name_for_check
+                        for candidate in all_candidates.values()
+                    )
+
+                    if normalized_key not in all_candidates and not name_exists:
                         all_candidates[normalized_key] = {
                             'title': result.get('title', ''),
                             'url': url,
@@ -360,8 +460,12 @@ Focus on finding company names, locations, and funding information."""
                         }
                         new_count += 1
                     else:
-                        all_candidates[normalized_key]['found_count'] += 1
+                        # It's a duplicate - either by key or by name
+                        if normalized_key in all_candidates:
+                            all_candidates[normalized_key]['found_count'] += 1
                         duplicate_count += 1
+                        if name_exists and normalized_key not in all_candidates:
+                            print(f"    🔄 Duplicate name detected: {result.get('title', '')} (different URL)")
 
                 # Detailed logging
                 print(f"  API returned: {raw_count} results")

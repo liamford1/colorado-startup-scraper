@@ -109,7 +109,8 @@ If they exist and look good, keep them. Only extract/improve if missing or uncle
   "company_stage": "Company stage (e.g., 'Seed', 'Early Growth', 'Growth', 'Late Stage', 'Mature')",
   "technology_focus": "Technology focus areas (e.g., 'DeepTech, AI/ML', 'CleanTech', 'Biotech', 'FinTech', etc.)",
   "target_market": "Target market (e.g., 'Enterprise', 'SMB', 'Consumer', 'Government', etc.)",
-  "colorado_connection": "High/Medium/Low based on Colorado HQ + Colorado founders"
+  "colorado_presence": "Describe Colorado presence: HQ location, office locations, or 'None'",
+  "colorado_connection": "High/Medium/Low based on Colorado HQ, office, or founders"
 }}
 
 IMPORTANT INSTRUCTIONS:
@@ -119,6 +120,8 @@ IMPORTANT INSTRUCTIONS:
 - Colorado investors include: Foundry Group, Access Venture Partners, Boulder Ventures, Ridgeline, Blackhorn, etc.
 - For funding progression, show the sequence (e.g., "Seed → Series A → Series B → Series C")
 - Calculate years_since_last_funding from latest_round_date to current year (2025)
+- For colorado_presence: Look for mentions of HQ, offices, or locations in Colorado (Denver, Boulder, Fort Collins, etc.)
+- Colorado connection is High if HQ in CO, Medium if office in CO, Low if only investors/founders from CO
 - Focus on extracting NEW insights (industry, business model, stage, etc.) from the data
 - Return ONLY valid JSON, no additional text
 
@@ -275,7 +278,7 @@ def process_all_companies(input_file: str, output_file: str, test_mode: bool = F
 
         # Company Intelligence
         'industry_categories', 'business_model', 'company_stage',
-        'technology_focus', 'target_market', 'colorado_connection'
+        'technology_focus', 'target_market', 'colorado_presence', 'colorado_connection'
     ]
 
     with open(output_file, 'w', newline='', encoding='utf-8') as f:

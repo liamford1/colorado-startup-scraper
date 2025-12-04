@@ -35,28 +35,40 @@ def backup_file(filepath: str) -> str:
 
 
 def is_colorado_company(company: Dict) -> bool:
-    """Check if a company is based in Colorado"""
+    """Check if a company is based in Colorado OR has a Colorado office"""
     # Check all location-related fields
     location_state = str(company.get('location_state', '')).strip().upper()
     location_city = str(company.get('location_city', '')).lower()
     location = str(company.get('location', '')).lower()
     headquarters = str(company.get('headquarters', '')).lower()
+    description = str(company.get('description', '')).lower()
 
-    # Check if Colorado/CO is mentioned in any field
-    is_colorado = (
+    # Check for Colorado presence in any field
+    has_colorado_hq = (
         location_state == 'CO' or
-        'colorado' in location or
         'colorado' in headquarters or
         ', co' in location or
         location.endswith(' co')
     )
 
-    return is_colorado
+    # Check for Colorado office mentions
+    has_colorado_office = (
+        'office in colorado' in description or
+        'colorado office' in description or
+        'offices in colorado' in description or
+        'denver office' in description or
+        'boulder office' in description or
+        'colorado location' in description or
+        'based in colorado' in description or
+        'colorado' in location
+    )
+
+    return has_colorado_hq or has_colorado_office
 
 
 def filter_colorado_companies(companies: List[Dict]) -> tuple[List[Dict], List[str]]:
     """
-    Filter to only keep companies headquartered in Colorado.
+    Filter to only keep companies headquartered in Colorado OR with a Colorado office.
     Returns (colorado_companies, removed_company_names)
     """
     colorado_companies = []
@@ -90,12 +102,6 @@ def main():
         return
 
     print("\n📁 Loading final output files...")
-
-    # Create backups
-    print("\n💾 Creating backups...")
-    backup_file(json_file)
-    if os.path.exists(csv_file):
-        backup_file(csv_file)
 
     # Load JSON data
     with open(json_file, 'r', encoding='utf-8') as f:
@@ -150,7 +156,6 @@ def main():
         print("✅ No non-Colorado companies found - all companies are already in Colorado!")
     else:
         print(f"✅ Removed {removed_count} non-Colorado companies")
-        print("\n💡 Tip: Check the backup files if you need to restore the original data")
 
     # Show some stats
     if colorado_companies:
